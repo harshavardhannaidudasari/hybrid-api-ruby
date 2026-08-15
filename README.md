@@ -62,13 +62,34 @@ Built on stdlib `Net::HTTP` rather than a gem like Faraday or HTTParty - see
 | `HYBRID_API_RETRY_BACKOFF_MS` | `300` | Delay between retries |
 | `HYBRID_API_AUTH_USERNAME` / `HYBRID_API_AUTH_PASSWORD` | `emilys` / `emilyspass` | Credentials the auth specs log in with |
 
-## Target API used for this repo's own specs
+## Target APIs used for this repo's own specs
 
-[dummyjson.com](https://dummyjson.com) - a free, no-signup-required fake
-REST API with real CRUD semantics and a working JWT auth flow, used here
-purely to prove the client works end-to-end. (`reqres.in`, the other common
-choice for this, now requires a paid API key for every endpoint - confirmed
-by `curl` returning 401 on a plain `GET /api/users/2` - so it wasn't used.)
+Three independent, real targets, chosen from
+[public-apis/public-apis](https://github.com/public-apis/public-apis) where
+noted, prove `ApiClient` isn't tied to one specific backend - the same
+class, just constructed with a different `base_url:`, no framework changes
+needed:
+
+- [dummyjson.com](https://dummyjson.com) - a free, no-signup-required fake
+  REST API with real CRUD semantics and a working JWT auth flow.
+  (`reqres.in`, the other common choice for this, now requires a paid API
+  key for every endpoint - confirmed by `curl` returning 401 on a plain
+  `GET /api/users/2` - so it wasn't used.)
+- [jsonplaceholder.typicode.com](https://jsonplaceholder.typicode.com) - a
+  second fake REST API built for the identical purpose as dummyjson.com
+  ("testing and prototyping"), sourced from the public-apis list. Its
+  `/posts` CRUD semantics mirror dummyjson's `/products` closely enough
+  that the same spec shapes port over almost unchanged, on a genuinely
+  different host.
+- [postman-echo.com](https://postman-echo.com) - an HTTP echo service used
+  to directly prove each verb sends what `ApiClient` claims: the response
+  reflects the exact query params/JSON body back. **Originally scoped as
+  `httpbin.org`** (also from the public-apis list), but `httpbin.org`'s
+  public instance was found genuinely returning `503 Service Unavailable`
+  when checked live via `curl` immediately before writing this spec - not a
+  one-off blip, a retry a few seconds later gave the same result.
+  Substituted Postman's own echo service, which was healthy and behaves
+  identically.
 
 ## Setup
 
@@ -85,17 +106,19 @@ bundle exec rspec
 
 ## What's actually been verified (last real run)
 
-`bundle exec rspec` -> **7/7 passed** against the live `dummyjson.com`:
+`bundle exec rspec` -> **16/16 passed** against three live targets:
 
 | Spec | What it proves |
 |---|---|
-| `gets a single product with the expected fields` | `GET` + JSON parsing |
-| `respects the limit query param on the product list` | Query params |
-| `adds a product and echoes back the title with a new id` | `POST` with a JSON body (`201`) |
-| `updates a product and returns the updated title` | `PUT` with a JSON body |
-| `deletes a product and marks isDeleted true` | `DELETE` |
-| `rejects /auth/me with no token` | Protected endpoint correctly `401`s with no auth |
-| `logs in then fetches the authenticated user with the returned token` | Full auth flow: login for a real JWT, then use `with_bearer_token` on a second client instance to hit a protected endpoint |
+| `gets a single product with the expected fields` | `GET` + JSON parsing (dummyjson.com) |
+| `respects the limit query param on the product list` | Query params (dummyjson.com) |
+| `adds a product and echoes back the title with a new id` | `POST` with a JSON body (`201`) (dummyjson.com) |
+| `updates a product and returns the updated title` | `PUT` with a JSON body (dummyjson.com) |
+| `deletes a product and marks isDeleted true` | `DELETE` (dummyjson.com) |
+| `rejects /auth/me with no token` | Protected endpoint correctly `401`s with no auth (dummyjson.com) |
+| `logs in then fetches the authenticated user with the returned token` | Full auth flow: login for a real JWT, then use `with_bearer_token` on a second client instance to hit a protected endpoint (dummyjson.com) |
+| `gets a single post` / `respects _limit` / `adds a post` / `updates a post` / `deletes a post` | Same CRUD shape as the dummyjson.com specs, against jsonplaceholder.typicode.com - proves it's not accidentally coupled to dummyjson.com's specific response shape |
+| `echoes query params on get` / `echoes json body on post` / `echoes json body on put` / `succeeds on delete` | Each verb's query params/body genuinely arrive at the server as sent, against postman-echo.com |
 
 ## Bug found by actually running this (and how it was fixed)
 
